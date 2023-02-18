@@ -9,6 +9,9 @@ jobs:
   tests:
     runs-on: ubuntu-latest
 
+    env:
+      CMC_API_KEY: ${{ secrets.CMC_API_KEY }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
