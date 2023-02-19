@@ -1,43 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+contract Nft {
+    address private _owner;
+    // Token name
+    string public _name;
+    // Token symbol
+    string public _symbol;
 
-contract Nft is
-    ERC721,
-    ERC721Enumerable,
-    ERC721URIStorage,
-    ERC721Burnable,
-    Ownable
-{
-    uint16 public nftCount;
     uint32 private seed;
+    uint16 public maxSupply;
 
-    using Counters for Counters.Counter;
-
-    Counters.Counter private _tokenIdCounter;
+    mapping(uint16 => address) private _owners;
+    mapping(address => uint16) private _balances;
 
     // Check nftId if it's valid
     modifier validNft(uint16 nftId) {
-        require(nftId < nftCount, "Not valid nftId!");
+        require(nftId < maxSupply, "Not valid nftId!");
         _;
     }
 
-    // Check the nftId counter if has limit to mint
-    modifier validMint() {
-        require(_tokenIdCounter.current() < nftCount, "No limit to mint!");
-        _;
-    }
+    event Transfer(address from, address to, uint16 tokenId);
 
     // Constructor parameters _nftCount and _seed, max nft number and seed for different genomes
-    constructor(uint16 _nftCount, uint32 _seed) ERC721("Phoenix", "Phx") {
-        nftCount = _nftCount;
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint16 _maxSupply,
+        uint32 _seed
+    ) {
+        _name = name;
+        _symbol = symbol;
         seed = _seed;
+        maxSupply = _maxSupply;
+        _owner = msg.sender;
     }
 
     // Struct to hold genome attributes
@@ -54,6 +50,41 @@ contract Nft is
         uint8 pet;
         uint8 accessory;
         uint8 border;
+    }
+
+    function _msgSender() internal view returns (address) {
+        return msg.sender;
+    }
+
+    function transfer(address to, uint16 tokenId) public {
+        require(to != address(0), "transfer to the zero address");
+
+        if (ownerOf(tokenId) == address(0)) {
+            require(_msgSender() == _owner, "caller is not the owner");
+        } else {
+            require(
+                ownerOf(tokenId) == _msgSender(),
+                "transfer from incorrect owner"
+            );
+
+            _balances[_msgSender()] -= 1;
+        }
+
+        _balances[to] += 1;
+        _owners[tokenId] = to;
+
+        emit Transfer(_msgSender(), to, tokenId);
+    }
+
+    function balanceOf(address owner) public view returns (uint16) {
+        require(owner != address(0), "address zero is not a valid owner");
+        return _balances[owner];
+    }
+
+    function ownerOf(uint16 tokenId) public view returns (address) {
+        require(tokenId < maxSupply, "not valid tokenId");
+        address owner = _owners[tokenId];
+        return owner;
     }
 
     // View function to get genome packed value from nftId, callable inside the contract
@@ -86,61 +117,5 @@ contract Nft is
                 accessory: (uint8(genome >> 56) & 31) % 26,
                 border: (uint8(genome >> 61) & 31) % 31
             });
-    }
-
-    // Mint function with validMint modifier to check if has limit to mint new Nft
-    function safeMint(address to, string memory uri)
-        public
-        validMint
-        onlyOwner
-    {
-        uint256 tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, uri);
-    }
-
-    // The following functions are overrides required by Solidity.
-
-    // Same as mint function, transfer function has validNft modifier to check if the nftId is valid
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) public override(IERC721, ERC721) validNft(uint16(tokenId)) {
-        super.safeTransferFrom(from, to, tokenId, "");
-    }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, tokenId);
-    }
-
-    function _burn(uint256 tokenId)
-        internal
-        override(ERC721, ERC721URIStorage)
-    {
-        super._burn(tokenId);
-    }
-
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721, ERC721URIStorage)
-        returns (string memory)
-    {
-        return super.tokenURI(tokenId);
-    }
-
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, ERC721Enumerable)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
     }
 }

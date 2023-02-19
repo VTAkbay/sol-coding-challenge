@@ -26,6 +26,12 @@ let nft: Nft;
 const nftCount = 50;
 const seed = generateRandomUint16();
 
+const firstSigner = ethers.provider.getSigner(0);
+const firstSignerAddress = firstSigner.getAddress();
+
+const secondSigner = ethers.provider.getSigner(1);
+const secondSignerAddress = secondSigner.getAddress();
+
 function calcGenom(nftId: number) {
   const encodedData = ethers.utils.defaultAbiCoder.encode(
     ["uint256", "uint16"],
@@ -61,7 +67,7 @@ function expectedGenomAttributes(nftId: number): Attributes {
 describe("viewGenomeAttributes()", () => {
   before(async function () {
     const Nft = await ethers.getContractFactory("Nft");
-    nft = await Nft.deploy(nftCount, seed);
+    nft = await Nft.deploy("Phoenix", "Phx", nftCount, seed);
     await nft.deployed();
   });
 
@@ -97,33 +103,73 @@ describe("viewGenomeAttributes()", () => {
     }
   });
 
-  it("Shoud reject when nftId is not valid", async function () {
+  it("Shoud revert when nftId is not valid", async function () {
     await expect(nft.viewGenomeAttributes(nftCount + 1)).revertedWith(
       "Not valid nftId!"
     );
   });
 });
 
-describe("safeMint()", () => {
-  const firstSigner = ethers.provider.getSigner(0);
-
+describe("ownerOf()", () => {
   beforeEach(async function () {
     const Nft = await ethers.getContractFactory("Nft");
-    nft = await Nft.deploy(nftCount, seed);
+    nft = await Nft.deploy("Phoenix", "Phx", nftCount, seed);
     await nft.deployed();
   });
 
-  it(`Should mint maximum ${nftCount} NFT`, async function () {
-    const firstSignerAddress = await firstSigner.getAddress();
+  it(`Should be AddresZero owner of tokens`, async function () {
+    for (let i = 0; i < nftCount; i++) {
+      expect(await nft.ownerOf(i)).to.be.equal(ethers.constants.AddressZero);
+    }
+  });
+});
+
+describe("balanceOf()", () => {
+  beforeEach(async function () {
+    const Nft = await ethers.getContractFactory("Nft");
+    nft = await Nft.deploy("Phoenix", "Phx", nftCount, seed);
+    await nft.deployed();
+  });
+
+  it(`Should give balance of amount token for address`, async function () {
+    expect(await nft.balanceOf(firstSignerAddress)).to.be.equal(0);
 
     for (let i = 0; i < nftCount; i++) {
-      await nft.safeMint(firstSignerAddress, `${i}`).then(async () => {
-        expect(await nft.tokenURI(i)).to.be.equal(`${i}`);
-      });
+      await nft.transfer(firstSignerAddress, i);
+      expect(await nft.ownerOf(i)).to.be.equal(await firstSignerAddress);
     }
 
-    await expect(nft.safeMint(firstSignerAddress, `${nftCount}`)).revertedWith(
-      "No limit to mint!"
-    );
+    expect(await nft.balanceOf(firstSignerAddress)).to.be.equal(nftCount);
+  });
+});
+
+describe("transfer()", () => {
+  beforeEach(async function () {
+    const Nft = await ethers.getContractFactory("Nft");
+    nft = await Nft.deploy("Phoenix", "Phx", nftCount, seed);
+    await nft.deployed();
+  });
+
+  it("Should not transfer fresh token except owner", async function () {
+    for (let i = 0; i < nftCount; i++) {
+      await nft.transfer(firstSignerAddress, i);
+      expect(await nft.ownerOf(i)).to.be.equal(await firstSignerAddress);
+    }
+  });
+
+  it("Should transfer token", async function () {
+    for (let i = 0; i < nftCount; i++) {
+      await nft.transfer(firstSignerAddress, i);
+      expect(await nft.ownerOf(i)).to.be.equal(await firstSignerAddress);
+    }
+
+    for (let i = 0; i < nftCount; i++) {
+      await nft.transfer(secondSignerAddress, i);
+      expect(await nft.ownerOf(i)).to.be.equal(await secondSignerAddress);
+    }
+  });
+
+  it("Should revert ownerOf if not valid tokenId", async function () {
+    await expect(nft.ownerOf(nftCount + 1)).revertedWith("not valid tokenId");
   });
 });
